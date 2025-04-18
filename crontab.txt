@@ -1,1 +1,0 @@
-*/2 * * * * cd /app && /usr/local/bin/python cf_ddns.py >> /app/cron.log 2>&1

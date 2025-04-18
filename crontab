@@ -1,0 +1,19 @@
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+# Export environment vars needed by the script
+CF_DDNS_ZONE_ID=${CF_DDNS_ZONE_ID}
+CF_DDNS_API_TOKEN=${CF_DDNS_API_TOKEN}
+CF_DDNS_RECORD_NAMES=${CF_DDNS_RECORD_NAMES}
+CF_DDNS_EMAIL_AUTH_ADDRESS=${CF_DDNS_EMAIL_AUTH_ADDRESS}
+CF_DDNS_EMAIL_AUTH_PASSWORD=${CF_DDNS_EMAIL_AUTH_PASSWORD}
+CF_DDNS_EMAIL_SERVER=${CF_DDNS_EMAIL_SERVER}
+CF_DDNS_EMAIL_PORT=${CF_DDNS_EMAIL_PORT}
+CF_DDNS_EMAIL_SENDER_NAME=${CF_DDNS_EMAIL_SENDER_NAME}
+CF_DDNS_EMAIL_SENDER_ADDRESS=${CF_DDNS_EMAIL_SENDER_ADDRESS}
+CF_DDNS_EMAIL_RECIPIENT_ADDRESS=${CF_DDNS_EMAIL_RECIPIENT_ADDRESS}
+EMAIL_TEST=${EMAIL_TEST}
+TZ=${TZ}
+
+# Run script every 2 minutes, redirecting output to log
+*/2 * * * * root cd /app && /usr/local/bin/python cf_ddns_upnp.py >> /app/data/cron.log 2>&1

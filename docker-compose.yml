@@ -4,9 +4,23 @@ services:
     network_mode: "host"
     build:
       context: .
-      dockerfile: Dockerfile 
+      dockerfile: Dockerfile
     environment:
-      - TZ=America/New_York 
+      # Cloudflare Info
+      - CF_DDNS_ZONE_ID=[cloudflare zone id]
+      - CF_DDNS_API_TOKEN=[cloudflare api token]
+      - CF_DDNS_RECORD_NAMES=server1.mydomain.com,server2.mydomain.com
+      # Email Info
+      - CF_DDNS_EMAIL_AUTH_ADDRESS=myemail@mydomain.com
+      - CF_DDNS_EMAIL_AUTH_PASSWORD=[email password]
+      - CF_DDNS_EMAIL_SERVER=smtp.mymailhost.com
+      - CF_DDNS_EMAIL_PORT=465
+      - CF_DDNS_EMAIL_SENDER_NAME=DDNS Updater
+      - CF_DDNS_EMAIL_SENDER_ADDRESS=myalertaddress@mydomain.com
+      - CF_DDNS_EMAIL_RECIPIENT_ADDRESS=me@mydomain.com
+      - EMAIL_TEST=false
+      # Time zone for log timestamps
+      - TZ=America/New_York   
     volumes:
       - ./data:/app/data
     restart: unless-stopped

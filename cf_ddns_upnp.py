@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import requests
 import json
@@ -6,12 +7,15 @@ import smtplib
 import miniupnpc
 import ipaddress
 from datetime import datetime
-from decouple import config
 from pathlib import Path
 from email.message import EmailMessage
 
+# For debugging only
+#from dotenv import load_dotenv
+#load_dotenv()
+
 # Cloudflare Info
-record_names = config('RECORD_NAMES').split(',')
+record_names = os.environ['CF_DDNS_RECORD_NAMES'].split(',')
 record_proxied = False
 
 DATA_FILE = str(Path(__file__).parent / "data" / "ip.txt")
@@ -48,6 +52,15 @@ def write_data(ip):
 	with open(DATA_FILE, mode='w') as datafile:
 		datafile.writelines(str(ip))
 		datafile.close()
+  
+def settings_check():
+    cf_ddns_env_vars = {k: v for k, v in os.environ.items() if k.startswith("CF_DDNS_")}
+    missing_or_none = [k for k in cf_ddns_env_vars if cf_ddns_env_vars[k] in (None, '', 'None')]
+    if missing_or_none:
+        write_log("ERROR: Unset environment variables:")
+        for missing_var in missing_or_none:
+            write_log(f" - {missing_var}")
+        sys.exit(1)
 
 def current_ip():
     try:
@@ -66,24 +79,23 @@ def previous_ip():
 	if path.is_file():
 		return read_data()
 	else:
-		write_log(f"Creating {DATA_FILE} with this entry.")
+		write_log(f"Previous IP not found")
 		write_log(f"Current IP: {current_ip()}")
 		write_data(current_ip())
 		return "None"
 
 def set_ip(record_name: str, current_ip: str):
-	zone_id_url = f"https://api.cloudflare.com/client/v4/zones/{config('ZONE_ID')}/dns_records?name={record_name}"
-
+	zone_id_url = f"https://api.cloudflare.com/client/v4/zones/{os.environ.get('CF_DDNS_ZONE_ID')}/dns_records?name={record_name}"
 	headers= {
-		"Authorization": f"Bearer {config('API_TOKEN')}",
+  		"Authorization": f"Bearer {os.environ.get('CF_DDNS_API_TOKEN')}",
 		"Content-Type": "application/json",
 	}
 	
 	response = requests.get(zone_id_url, headers=headers)
 	record_id = json.loads(response.text)['result'][0]['id']
 	
-	update_ip_url = f"https://api.cloudflare.com/client/v4/zones/{config('ZONE_ID')}/dns_records/{record_id}"
-	
+	update_ip_url = f"https://api.cloudflare.com/client/v4/zones/{os.environ.get('CF_DDNS_ZONE_ID')}/dns_records/{record_id}"	
+ 
 	payload = {"type": "A", "name": record_name, "content": current_ip, "proxied": record_proxied}
 	response = requests.put(update_ip_url, headers=headers, data=json.dumps(payload))
 	response_dict = json.loads(response.text)
@@ -93,16 +105,24 @@ def set_ip(record_name: str, current_ip: str):
 def send_email(subject: str, body: str):
 	msg = EmailMessage()
 	msg['Subject'] = subject
-	msg['From'] = f"{config('EMAIL_SENDER_NAME')} <{config('EMAIL_SENDER_ADDRESS')}>"
-	msg['To'] = config('EMAIL_RECIPIENT_ADDRESS')
+	msg['From'] = f"{os.environ.get('CF_DDNS_EMAIL_SENDER_NAME')} <{os.environ.get('CF_DDNS_EMAIL_SENDER_ADDRESS')}>"
+	msg['To'] = os.environ.get('CF_DDNS_EMAIL_RECIPIENT_ADDRESS')
 	msg.set_content(body)
-	with smtplib.SMTP_SSL(config('EMAIL_SERVER'), config('EMAIL_PORT')) as smtp:
-		smtp.login(config('EMAIL_AUTH_ADDRESS'), config('EMAIL_AUTH_PASSWORD'))
+	with smtplib.SMTP_SSL(os.environ.get('CF_DDNS_EMAIL_SERVER'), os.environ.get('CF_DDNS_EMAIL_PORT')) as smtp:
+		smtp.login(os.environ.get('CF_DDNS_EMAIL_AUTH_ADDRESS'), os.environ.get('CF_DDNS_EMAIL_AUTH_PASSWORD'))
 		smtp.send_message(msg)
 		
 # Main
 
-# Ensure data directory exists
+settings_check()
+
+if os.environ.get('EMAIL_TEST', '').lower() == 'true':
+    try:
+        send_email("DDNS Updater Test Message", "This is a test.")
+        write_log("Test email sent successfully")
+    except Exception as e:
+        write_log(f"ERROR: Test email was not sent successfully: {e}")
+
 (Path(__file__).parent / "data").mkdir(exist_ok=True)
 
 current, previous = (current_ip().rstrip('\n')), (previous_ip().rstrip('\n'))
@@ -117,7 +137,7 @@ if "None" not in { current, previous }:
 			send_email("DDNS Updated", email_body)
 			write_log("Update email sent successfully")
 		except:
-			write_log("Update email was not sent successfully")
+			write_log("ERROR: Update email was not sent successfully")
 	elif previous != "None":
 		touch_log()
-	truncate_log()
+truncate_log()
